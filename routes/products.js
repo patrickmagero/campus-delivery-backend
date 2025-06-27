@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-// GET /api/products — basic product list with category
+// GET /api/products — basic product list
 router.get("/", async (req, res) => {
   const conn = req.app.get("db");
 
@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/products/:id — full product details
+// GET /api/products/:id — detailed product page (without missing tables)
 router.get("/:id", async (req, res) => {
   const productId = req.params.id;
   const conn = req.app.get("db");
@@ -67,40 +67,22 @@ router.get("/:id", async (req, res) => {
 
     const product = productRows[0];
 
+    // Fetch product images
     const [images] = await conn.promise().query(
       "SELECT url FROM product_images WHERE product_id = ?",
       [productId]
     );
 
-    const [variants] = await conn.promise().query(
-      "SELECT color, size, stock FROM product_variants WHERE product_id = ?",
-      [productId]
-    );
-
-    const [tags] = await conn.promise().query(
-      "SELECT tag FROM product_tags WHERE product_id = ?",
-      [productId]
-    );
-
+    // Fetch product reviews
     const [reviews] = await conn.promise().query(
       "SELECT user_name, rating, comment, created_at FROM reviews WHERE product_id = ? ORDER BY created_at DESC",
       [productId]
     );
 
-    const [related] = await conn.promise().query(`
-      SELECT p.id, p.name, p.price 
-      FROM related_products r
-      JOIN products p ON r.related_id = p.id
-      WHERE r.product_id = ?
-    `, [productId]);
-
     res.json({
       ...product,
       images: images.map(i => i.url),
-      variants,
-      tags: tags.map(t => t.tag),
-      reviews,
-      related_products: related
+      reviews
     });
   } catch (err) {
     console.error("Error in GET /products/:id:", err.message);
