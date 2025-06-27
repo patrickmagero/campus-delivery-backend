@@ -37,21 +37,33 @@ app.set("db", db);
 app.use("/api/products", productRoutes);
 
 
-// 🔍 GET all products
+
+// 🔍 GET all products WITH category name
 app.get("/api/products", (req, res) => {
-  db.query("SELECT * FROM products", (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+  const db = req.app.get("db");
+
+  const query = `
+    SELECT 
+      p.*, 
+      c.name AS category,
+      s.name AS seller_name,
+      s.rating AS seller_rating
+    FROM products p
+    JOIN categories c ON p.category_id = c.id
+    JOIN sellers s ON p.seller_id = s.id
+  `;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching products with category:", err);
+      return res.status(500).json({ error: err.message });
+    }
     res.json(results);
   });
 });
 
-// 🛠️ GET all services
-app.get("/api/services", (req, res) => {
-  db.query("SELECT * FROM services", (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(results);
-  });
-});
+
+
 
 // 📤 POST new product with images
 app.post("/api/products", upload.array("images", 5), (req, res) => {

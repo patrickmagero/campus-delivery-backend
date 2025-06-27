@@ -1,12 +1,43 @@
 const express = require("express");
 const router = express.Router();
 
+// GET /api/products — basic product list with category
+router.get("/", async (req, res) => {
+  const conn = req.app.get("db");
 
+  try {
+    const [rows] = await conn.promise().query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p.old_price,
+        p.rating,
+        p.review_count,
+        c.name AS category,
+        (
+          SELECT url 
+          FROM product_images 
+          WHERE product_id = p.id 
+          ORDER BY id ASC 
+          LIMIT 1
+        ) AS image_url
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+    `);
 
-// GET /api/products/:id — full product info
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching products:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/products/:id — full product details
 router.get("/:id", async (req, res) => {
   const productId = req.params.id;
-  const conn = req.app.get("db"); // get db connection from app
+  const conn = req.app.get("db");
 
   try {
     const [productRows] = await conn.promise().query(`
@@ -36,7 +67,6 @@ router.get("/:id", async (req, res) => {
 
     const product = productRows[0];
 
-    // Related info
     const [images] = await conn.promise().query(
       "SELECT url FROM product_images WHERE product_id = ?",
       [productId]
