@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const verifyToken = require("../middleware/verifyToken");
+const isAdmin = require("../middleware/isAdmin");
+const upload = require("../middleware/upload");
+
 
 // GET /api/products — basic product list
 router.get("/", async (req, res) => {
@@ -34,7 +38,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/products/:id — detailed product page (without missing tables)
+// GET /api/products/:id — detailed product info
 router.get("/:id", async (req, res) => {
   const productId = req.params.id;
   const conn = req.app.get("db");
@@ -67,15 +71,16 @@ router.get("/:id", async (req, res) => {
 
     const product = productRows[0];
 
-    // Fetch product images
     const [images] = await conn.promise().query(
       "SELECT url FROM product_images WHERE product_id = ?",
       [productId]
     );
 
-    // Fetch product reviews
     const [reviews] = await conn.promise().query(
-      "SELECT user_name, rating, comment, created_at FROM reviews WHERE product_id = ? ORDER BY created_at DESC",
+      `SELECT user_name, rating, comment, created_at 
+       FROM product_reviews 
+       WHERE product_id = ? 
+       ORDER BY created_at DESC`,
       [productId]
     );
 
@@ -89,5 +94,88 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
+// POST /api/products — add new product
+router.post("/", verifyToken, isAdmin, (req, res) => {
+  const db = req.app.get("db");
+  const {
+    name,
+    description,
+    long_description,
+    price,
+    old_price,
+    rating,
+    review_count,
+    category_id,
+    seller_id
+  } = req.body;
+
+  const query = `
+    INSERT INTO products (name, description, long_description, price, old_price, rating, review_count, category_id, seller_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(query, [name, description, long_description, price, old_price, rating, review_count, category_id, seller_id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.status(201).json({ message: "Product added", product_id: result.insertId });
+  });
+});
+
+// PUT /api/products/:id — update product
+router.put("/:id", verifyToken, isAdmin, (req, res) => {
+  const db = req.app.get("db");
+  const { id } = req.params;
+  const {
+    name,
+    description,
+    long_description,
+    price,
+    old_price,
+    rating,
+    review_count,
+    category_id,
+    seller_id
+  } = req.body;
+
+  const query = `
+    UPDATE products
+    SET name=?, description=?, long_description=?, price=?, old_price=?, rating=?, review_count=?, category_id=?, seller_id=?
+    WHERE id=?
+  `;
+
+  db.query(query, [name, description, long_description, price, old_price, rating, review_count, category_id, seller_id, id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Product updated" });
+  });
+});
+
+// DELETE /api/products/:id — delete product
+router.delete("/:id", verifyToken, isAdmin, (req, res) => {
+  const db = req.app.get("db");
+  const { id } = req.params;
+
+  db.query("DELETE FROM products WHERE id = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Product deleted" });
+  });
+});
+// POST /api/products/:id/images — upload product image
+router.post("/:id/images", verifyToken, isAdmin, upload.single("image"), (req, res) => {
+  const db = req.app.get("db");
+  const productId = req.params.id;
+
+  if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+
+  const query = "INSERT INTO product_images (product_id, url) VALUES (?, ?)";
+  db.query(query, [productId, imageUrl], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    res.status(201).json({ message: "Image uploaded", image_url: imageUrl });
+  });
+});
+
 
 module.exports = router;

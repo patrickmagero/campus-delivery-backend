@@ -1,12 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const generateToken = require('../utils/jwt'); // Adjust path accordingly
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-
 // Register new user (Step 1)
-router.post("/register", (req, res) => {
+router.post("/register", async (req, res) => {
   const db = req.app.get("db");
   const {
     first_name,
@@ -17,42 +15,55 @@ router.post("/register", (req, res) => {
     country,
     dob,
     city,
-    zipcode
+    zipcode,
+    address,
+    password,
   } = req.body;
 
-  // Check for existing user
   const checkQuery = "SELECT * FROM users WHERE email = ? OR phone = ?";
-  db.query(checkQuery, [email, phone], (err, results) => {
+  db.query(checkQuery, [email, phone], async (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     if (results.length > 0) {
       return res.status(400).json({ error: "Email or phone already exists" });
     }
 
-    // Generate OTP (for now, hardcoded)
-    const otp = "123456";
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = "123456"; // Use a secure generator in production
 
     const insertQuery = `
       INSERT INTO users 
-      (first_name, last_name, gender, phone, email, country, dob, city, zipcode, otp_code) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (first_name, last_name, gender, phone, email, country, dob, city, zipcode, address, password, otp_code) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     db.query(
       insertQuery,
-      [first_name, last_name, gender, phone, email, country, dob, city, zipcode, otp],
-      (err2, result) => {
+      [
+        first_name,
+        last_name,
+        gender,
+        phone,
+        email,
+        country,
+        dob,
+        city,
+        zipcode,
+        address,
+        hashedPassword,
+        otp,
+      ],
+      (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
 
         res.status(201).json({
           message: "User registered successfully. Please verify OTP.",
           email,
-          otpSent: true,
-          // otp: otp, // For testing only — remove in production
         });
       }
     );
   });
 });
+
 // OTP verification (Step 2)
 router.post("/verify-otp", (req, res) => {
   const db = req.app.get("db");
@@ -65,13 +76,9 @@ router.post("/verify-otp", (req, res) => {
   const findUserQuery = "SELECT * FROM users WHERE email = ?";
   db.query(findUserQuery, [email], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-
-    if (results.length === 0) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    if (results.length === 0) return res.status(404).json({ error: "User not found" });
 
     const user = results[0];
-
     if (user.otp_code !== otp_code) {
       return res.status(400).json({ error: "Invalid OTP code" });
     }
@@ -80,73 +87,52 @@ router.post("/verify-otp", (req, res) => {
     db.query(updateUserQuery, [email], (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
 
-      // Generate JWT token
-      const token = generateToken(user);
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          is_admin: user.is_admin === 1,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
 
       res.json({ message: "OTP verified successfully", token });
     });
   });
 });
-// Set user password after OTP verification
-router.post("/set-password", async (req, res) => {
-  const db = req.app.get("db");
-  const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const updateQuery = "UPDATE users SET password = ? WHERE email = ?";
-    db.query(updateQuery, [hashedPassword, email], (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      return res.json({ success: true, message: "Password set successfully" });
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Something went wrong while setting password" });
-  }
-});
-// Login user and return JWT
+// Login route
 router.post("/login", (req, res) => {
   const db = req.app.get("db");
   const { emailOrPhone, password } = req.body;
 
   if (!emailOrPhone || !password) {
-    return res.status(400).json({ error: "Email/Phone and password are required" });
+    return res.status(400).json({ error: "Email/phone and password are required" });
   }
 
-  const findUserQuery = "SELECT * FROM users WHERE email = ? OR phone = ?";
-  db.query(findUserQuery, [emailOrPhone, emailOrPhone], async (err, results) => {
+  const query = "SELECT * FROM users WHERE email = ? OR phone = ?";
+  db.query(query, [emailOrPhone, emailOrPhone], async (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-
-    if (results.length === 0) {
-      return res.status(401).json({ error: "User not found" });
-    }
+    if (results.length === 0) return res.status(401).json({ error: "Invalid credentials" });
 
     const user = results[0];
-
-    if (!user.password) {
-      return res.status(401).json({ error: "Password not set. Please complete registration." });
+    if (!user.otp_verified) {
+      return res.status(403).json({ error: "Please verify your OTP before logging in" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Incorrect password" });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Generate JWT
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         first_name: user.first_name,
+        is_admin: user.is_admin === 1,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -157,10 +143,12 @@ router.post("/login", (req, res) => {
       token,
       user: {
         id: user.id,
-        name: user.first_name + " " + user.last_name,
+        name: `${user.first_name} ${user.last_name}`,
         email: user.email,
+        is_admin: user.is_admin === 1,
       },
     });
   });
 });
+
 module.exports = router;

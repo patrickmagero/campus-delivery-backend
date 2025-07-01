@@ -1,1 +1,9 @@
-UPDATE users SET otp_code = '123456', otp_verified = 0 WHERE email = 'patrick@example.com';
+CREATE TABLE product_reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  user_name VARCHAR(100) NOT NULL,
+  rating FLOAT NOT NULL,
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);

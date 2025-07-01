@@ -8,6 +8,13 @@ require("dotenv").config();
 const productRoutes = require("./routes/products");
 const serviceRoutes = require("./routes/services");
 const userRoutes = require("./routes/users");
+const cartRoutes = require("./routes/cart");
+const orderRoutes = require("./routes/orders");
+const adminRoutes = require("./routes/admin");
+const categoriesRoute = require("./routes/categories");
+const serviceReviewRoutes = require("./routes/serviceReviews");
+const productReviewRoutes = require("./routes/productReviews");
+
 
 
 
@@ -43,6 +50,16 @@ app.set("db", db);
 app.use("/api/products", productRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/categories", categoriesRoute);
+app.use("/api/services/:id/reviews", serviceReviewRoutes);
+app.use("/api/product-reviews", productReviewRoutes);
+
+
+
+
 
 // GET all products with category and seller info
 app.get("/api/products", (req, res) => {
