@@ -14,7 +14,7 @@ const adminRoutes = require("./routes/admin");
 const categoriesRoute = require("./routes/categories");
 const serviceReviewRoutes = require("./routes/serviceReviews");
 const productReviewRoutes = require("./routes/productReviews");
-
+const agentAuthRoutes = require("./routes/agentAuth");
 
 
 
@@ -56,7 +56,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoriesRoute);
 app.use("/api/services/:id/reviews", serviceReviewRoutes);
 app.use("/api/product-reviews", productReviewRoutes);
-
+app.use("/api/agents", agentAuthRoutes);
 
 
 
