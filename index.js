@@ -16,8 +16,6 @@ const serviceReviewRoutes = require("./routes/serviceReviews");
 const productReviewRoutes = require("./routes/productReviews");
 const agentAuthRoutes = require("./routes/agentAuth");
 
-
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -35,23 +33,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// MySQL connection
-const db = mysql.createConnection({
+// MySQL connection pool for TiDB
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT || 4000,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: {
-    rejectUnauthorized: true,
-  },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  ssl: { rejectUnauthorized: true }
 });
 
-module.exports = db;
-
-
-// Make db accessible in route files
-app.set("db", db);
+// Make DB accessible in routes via req.app.get("db")
+app.set("db", pool);
 
 // Register routes
 app.use("/api/products", productRoutes);
@@ -65,34 +61,9 @@ app.use("/api/services/:id/reviews", serviceReviewRoutes);
 app.use("/api/product-reviews", productReviewRoutes);
 app.use("/api/agents", agentAuthRoutes);
 
-
-
-
-// GET all products with category and seller info
-app.get("/api/products", (req, res) => {
-  const db = req.app.get("db");
-  const query = `
-    SELECT 
-      p.*, 
-      c.name AS category,
-      s.name AS seller_name,
-      s.rating AS seller_rating
-    FROM products p
-    JOIN categories c ON p.category_id = c.id
-    JOIN sellers s ON p.seller_id = s.id
-  `;
-
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("Error fetching products with category:", err);
-      return res.status(500).json({ error: err.message });
-    }
-    res.json(results);
-  });
-});
-
 // POST new product with image upload
 app.post("/api/products", upload.array("images", 5), (req, res) => {
+  const db = req.app.get("db");
   const {
     name,
     price,
@@ -110,7 +81,9 @@ app.post("/api/products", upload.array("images", 5), (req, res) => {
 
   const parsedPrice = parseFloat(price);
   const parsedOldPrice = parseFloat(old_price || 0);
-  const imageUrls = files.map(f => `http://localhost:5000/uploads/${f.filename}`);
+
+  const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+  const imageUrls = files.map(f => `${serverUrl}/uploads/${f.filename}`);
 
   const insertProductQuery = `
     INSERT INTO products 
@@ -148,7 +121,31 @@ app.post("/api/products", upload.array("images", 5), (req, res) => {
   );
 });
 
-// Start server
-app.listen(5000, () => {
-  console.log("API running at http://localhost:5000");
+// GET all products with category and seller info
+app.get("/api/products", (req, res) => {
+  const db = req.app.get("db");
+  const query = `
+    SELECT 
+      p.*, 
+      c.name AS category,
+      s.name AS seller_name,
+      s.rating AS seller_rating
+    FROM products p
+    JOIN categories c ON p.category_id = c.id
+    JOIN sellers s ON p.seller_id = s.id
+  `;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetching products with category:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+// Start the server on correct port for Render
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`✅ API running on port ${PORT}`);
 });
