@@ -38,10 +38,17 @@ const upload = multer({ storage });
 // MySQL connection
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
+  port: process.env.DB_PORT || 4000,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  ssl: {
+    rejectUnauthorized: true,
+  },
 });
+
+module.exports = db;
+
 
 // Make db accessible in route files
 app.set("db", db);
