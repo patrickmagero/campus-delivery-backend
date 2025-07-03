@@ -3,16 +3,31 @@
         {
             "mysqlOptions": {
                 "authProtocol": "default",
+                "enableSsl": "Enabled",
+                "ssl": {
+                    "ca": "/etc/ssl/certs/ca-certificates.crt"
+                }
+            },
+            "previewLimit": 50,
+            "server": "gateway01.us-west-2.prod.aws.tidbcloud.com",
+            "port": 4000,
+            "driver": "MariaDB",
+            "name": "campus_delivery",
+            "database": "campus_delivery",
+            "username": "3pr2BFANXZvSxGJ.root"
+        },
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
                 "enableSsl": "Disabled"
             },
             "previewLimit": 50,
             "server": "localhost",
             "port": 3306,
             "driver": "MariaDB",
-            "name": "campus_delivery",
+            "name": "campus-delivery",
             "database": "campus_delivery",
-            "username": "root",
-            "askForPassword": true
+            "username": "root"
         }
     ]
 }
