@@ -16,6 +16,7 @@ const categoriesRoute = require("./routes/categories");
 const serviceReviewRoutes = require("./routes/serviceReviews");
 const productReviewRoutes = require("./routes/productReviews");
 const agentAuthRoutes = require("./routes/agentAuth");
+const paymentRoutes = require("./routes/payments");
 
 // Cloudinary Config
 const { storage } = require("./utils/cloudinary");
@@ -51,6 +52,7 @@ app.use("/api/categories", categoriesRoute);
 app.use("/api/services/:id/reviews", serviceReviewRoutes);
 app.use("/api/product-reviews", productReviewRoutes);
 app.use("/api/agents", agentAuthRoutes);
+app.use("/api/payments", paymentRoutes(upload));
 
 // Start server
 const PORT = process.env.PORT || 10000;
