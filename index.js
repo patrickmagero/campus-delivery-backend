@@ -52,7 +52,7 @@ app.use("/api/categories", categoriesRoute);
 app.use("/api/services/:id/reviews", serviceReviewRoutes);
 app.use("/api/product-reviews", productReviewRoutes);
 app.use("/api/agents", agentAuthRoutes);
-app.use("/api/payments", paymentRoutes(upload));
+app.use("/api/payments", paymentRoutes);
 
 // Start server
 const PORT = process.env.PORT || 10000;
